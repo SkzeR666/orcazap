@@ -1,15 +1,17 @@
 import { handle, ok, created, readJson, requireString, optionalString } from "@/lib/server/http";
 import { requireContext } from "@/lib/server/auth";
-import { createClient, listClients, serializeClient } from "@/lib/server/store";
+import { createClient, listClients, parsePage, serializeClient } from "@/lib/server/store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** GET /api/clients */
-export function GET() {
+/** GET /api/clients?limit=&offset= */
+export function GET(req: Request) {
   return handle(async () => {
     const ctx = await requireContext();
-    return ok({ clients: listClients(ctx).map(serializeClient) });
+    const page = parsePage(req);
+    const { rows, total } = listClients(ctx, page);
+    return ok({ clients: rows.map(serializeClient), meta: { total, ...page } });
   });
 }
 

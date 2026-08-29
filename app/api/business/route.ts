@@ -1,5 +1,5 @@
 import { handle, ok, readJson } from "@/lib/server/http";
-import { requireContext } from "@/lib/server/auth";
+import { requireAdmin, requireContext } from "@/lib/server/auth";
 import { serializeOrg, updateBusiness } from "@/lib/server/org";
 
 export const runtime = "nodejs";
@@ -17,6 +17,7 @@ export function GET() {
 export function PATCH(req: Request) {
   return handle(async () => {
     const ctx = await requireContext();
+    requireAdmin(ctx);
     const body = await readJson(req);
     const org = updateBusiness(ctx, body);
     return ok({ business: serializeOrg(org, { ...ctx, org }) });

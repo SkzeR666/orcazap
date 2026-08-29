@@ -6,6 +6,7 @@ import {
   type PDFPage,
 } from "pdf-lib";
 import { fromCents } from "./util";
+import { getLogo } from "./logo";
 import type { OrgRow } from "./auth";
 import type { QuoteRow } from "./store";
 import { statusLabelOf } from "./store";
@@ -31,15 +32,13 @@ function fmtDate(iso: string): string {
   });
 }
 
-async function tryEmbedLogo(doc: PDFDocument, logo: string | null) {
+async function tryEmbedLogo(doc: PDFDocument, orgId: string) {
+  const logo = getLogo(orgId);
   if (!logo) return null;
   try {
-    const match = /^data:image\/(png|jpe?g);base64,(.+)$/i.exec(logo.trim());
-    if (!match) return null;
-    const bytes = Buffer.from(match[2], "base64");
-    return match[1].toLowerCase().startsWith("png")
-      ? await doc.embedPng(bytes)
-      : await doc.embedJpg(bytes);
+    if (logo.mime === "image/png") return await doc.embedPng(logo.data);
+    if (logo.mime === "image/jpeg") return await doc.embedJpg(logo.data);
+    return null; // pdf-lib can't embed svg/webp; skip gracefully
   } catch {
     return null;
   }
@@ -74,7 +73,7 @@ export async function renderQuotePdf(
   // ---- header band --------------------------------------------------------
   page.drawRectangle({ x: 0, y: height - 132, width, height: 132, color: rgb(0.965, 0.98, 0.97) });
 
-  const logo = await tryEmbedLogo(doc, org.logo);
+  const logo = await tryEmbedLogo(doc, org.id);
   if (logo) {
     const dims = logo.scaleToFit(64, 64);
     page.drawImage(logo, { x: margin, y: height - 104, width: dims.width, height: dims.height });

@@ -1,6 +1,7 @@
-import { handle, ok, readJson, errors } from "@/lib/server/http";
+import { handle, ok, errors, json } from "@/lib/server/http";
 import { getDb } from "@/lib/server/db";
 import { newId, nowIso } from "@/lib/server/util";
+import { getProvider } from "@/lib/server/psp";
 import type { QuoteRow, ChargeRow } from "@/lib/server/store";
 
 export const runtime = "nodejs";
@@ -8,32 +9,57 @@ export const dynamic = "force-dynamic";
 
 /**
  * POST /api/webhooks/pix — provider callback confirming a Pix payment.
- * Body: { txid, status? }. If ORCAZAP_WEBHOOK_SECRET is set, the request must
- * carry a matching `x-webhook-secret` header.
+ * Body: { txid, status?, id? }. Authenticity is checked by the provider
+ * (HMAC signature or shared secret). Idempotent on the event id.
  */
 export function POST(req: Request) {
   return handle(async () => {
-    const secret = process.env.ORCAZAP_WEBHOOK_SECRET;
-    if (secret && req.headers.get("x-webhook-secret") !== secret) {
+    const provider = getProvider();
+    const raw = await req.text();
+
+    if (!provider.verify(raw, req.headers)) {
       throw errors.unauthorized("Assinatura de webhook inválida.");
     }
 
-    const body = await readJson(req);
-    const txid = typeof body.txid === "string" ? body.txid.trim() : "";
-    if (!txid) throw errors.badRequest('"txid" é obrigatório.');
-    const status = typeof body.status === "string" ? body.status : "pago";
+    let body: Record<string, unknown>;
+    try {
+      body = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+    } catch {
+      throw errors.badRequest("Corpo JSON inválido.");
+    }
+
+    const event = provider.parse(body);
+    if (!event.txid) throw errors.badRequest('"txid" é obrigatório.');
 
     const db = getDb();
-    db.prepare(
-      "INSERT INTO webhook_events (id, source, kind, payload, created_at) VALUES (?, 'pix', ?, ?, ?)",
-    ).run(newId("wh"), status, JSON.stringify(body), nowIso());
+
+    // Idempotency: skip if this event id was already processed.
+    if (event.eventId) {
+      const seen = db
+        .prepare("SELECT id FROM webhook_events WHERE event_id = ?")
+        .get(event.eventId);
+      if (seen) return ok({ received: true, duplicate: true });
+    }
+
+    try {
+      db.prepare(
+        "INSERT INTO webhook_events (id, source, kind, payload, event_id, created_at) VALUES (?, 'pix', ?, ?, ?, ?)",
+      ).run(newId("wh"), event.status, raw.slice(0, 8000), event.eventId, nowIso());
+    } catch (err) {
+      if (/UNIQUE constraint/i.test(String(err))) {
+        return ok({ received: true, duplicate: true });
+      }
+      throw err;
+    }
 
     const charge = db
       .prepare("SELECT * FROM charges WHERE txid = ?")
-      .get(txid) as ChargeRow | undefined;
-    if (!charge) throw errors.notFound("Cobrança não encontrada para o txid.");
+      .get(event.txid) as ChargeRow | undefined;
+    if (!charge) {
+      return json({ received: true, matched: false }, 202);
+    }
 
-    if (status === "pago" && charge.status !== "pago") {
+    if (event.status === "pago" && charge.status !== "pago") {
       db.prepare("UPDATE charges SET status='pago', paid_at=? WHERE id=?").run(
         nowIso(),
         charge.id,
@@ -53,6 +79,6 @@ export function POST(req: Request) {
         }
       }
     }
-    return ok({ received: true, txid });
+    return ok({ received: true, matched: true, txid: event.txid });
   });
 }

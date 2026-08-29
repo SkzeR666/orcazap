@@ -6,6 +6,7 @@ import {
   verifyPassword,
   type UserRow,
 } from "@/lib/server/auth";
+import { rateLimit, clientKey } from "@/lib/server/ratelimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,6 +18,10 @@ export function POST(req: Request) {
     const email = requireString(body, "email").toLowerCase();
     const password = requireString(body, "password", "senha");
 
+    // Throttle by IP and by target account to blunt brute-force attempts.
+    rateLimit(clientKey(req, "login"), { limit: 10, windowMs: 5 * 60_000 });
+    rateLimit(`login:acct:${email}`, { limit: 8, windowMs: 5 * 60_000 });
+
     const user = getDb()
       .prepare("SELECT * FROM users WHERE email = ?")
       .get(email) as UserRow | undefined;
@@ -26,6 +31,13 @@ export function POST(req: Request) {
 
     const token = createSession(user.id);
     await setSessionCookie(token);
-    return ok({ user: { id: user.id, name: user.name, email: user.email } });
+    return ok({
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        emailVerified: Boolean(user.email_verified),
+      },
+    });
   });
 }
