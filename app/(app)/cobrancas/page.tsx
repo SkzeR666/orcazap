@@ -1,5 +1,9 @@
+import { Card, CardBody } from "@/components/ui/card";
+import { DashGrid, PageStack } from "@/components/ui/dash-grid";
+import { StatCard } from "@/components/ui/stat-card";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { formatBRL, formatDate } from "@/lib/format";
-import { recentQuotes, statusLabel } from "@/lib/mock";
+import { recentQuotes } from "@/lib/mock";
 
 export const metadata = {
   title: "Cobranças",
@@ -9,42 +13,60 @@ export default function ChargesPage() {
   const charges = recentQuotes.filter((quote) =>
     ["cobrado", "pago", "aprovado"].includes(quote.status),
   );
+  const open = charges
+    .filter((c) => c.status !== "pago")
+    .reduce((s, c) => s + c.amount, 0);
+  const paid = charges
+    .filter((c) => c.status === "pago")
+    .reduce((s, c) => s + c.amount, 0);
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight text-[var(--ink)] sm:text-4xl">
-          Cobranças
-        </h1>
-        <p className="mt-2 text-[var(--muted)]">
-          Acompanhe o que está em aberto e o que já caiu.
-        </p>
-      </div>
+    <PageStack>
+      <DashGrid cols={3}>
+        <StatCard label="Em aberto" value={formatBRL(open)} />
+        <StatCard label="Recebido" value={formatBRL(paid)} deltaTone="up" />
+        <StatCard label="Cobranças" value={String(charges.length)} />
+      </DashGrid>
 
-      <div>
-        {charges.map((charge) => (
-          <div
-            key={charge.id}
-            className="grid grid-cols-[1fr_auto] items-center gap-3 border-b border-[var(--line)] py-4 last:border-b-0 sm:grid-cols-[1.2fr_1fr_auto_auto]"
-          >
-            <div>
-              <p className="font-medium text-[var(--ink)]">{charge.client}</p>
-              <p className="text-xs text-[var(--muted)] sm:hidden">
-                {statusLabel[charge.status]}
-              </p>
-            </div>
-            <p className="hidden truncate text-sm text-[var(--muted)] sm:block">
-              {charge.service}
-            </p>
-            <p className="hidden text-sm text-[var(--muted)] sm:block">
-              {statusLabel[charge.status]} · {formatDate(charge.createdAt)}
-            </p>
-            <p className="text-right font-semibold text-[var(--ink)]">
-              {formatBRL(charge.amount)}
-            </p>
-          </div>
-        ))}
-      </div>
-    </div>
+      <Card padding="none">
+        <CardBody>
+          <table className="w-full min-w-[560px] text-left text-sm">
+            <thead>
+              <tr className="border-b border-[var(--dash-border)] text-[11px] font-semibold tracking-[0.12em] text-[var(--dash-muted)] uppercase">
+                <th className="px-4 py-3 font-semibold">Cliente</th>
+                <th className="py-3 font-semibold">Serviço</th>
+                <th className="py-3 font-semibold">Status</th>
+                <th className="py-3 font-semibold">Data</th>
+                <th className="px-4 py-3 text-right font-semibold">Valor</th>
+              </tr>
+            </thead>
+            <tbody>
+              {charges.map((charge) => (
+                <tr
+                  key={charge.id}
+                  className="border-b border-[var(--dash-border)] last:border-b-0 hover:bg-[var(--dash-hover)]"
+                >
+                  <td className="px-4 py-3.5 font-medium text-[var(--dash-ink)]">
+                    {charge.client}
+                  </td>
+                  <td className="max-w-[220px] truncate py-3.5 text-[var(--dash-fg)]">
+                    {charge.service}
+                  </td>
+                  <td className="py-3.5">
+                    <StatusBadge status={charge.status} />
+                  </td>
+                  <td className="py-3.5 text-[var(--dash-muted)]">
+                    {formatDate(charge.createdAt)}
+                  </td>
+                  <td className="px-4 py-3.5 text-right font-medium tabular-nums text-[var(--dash-ink)]">
+                    {formatBRL(charge.amount)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </CardBody>
+      </Card>
+    </PageStack>
   );
 }

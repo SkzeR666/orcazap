@@ -1,4 +1,34 @@
-import { AppNav } from "@/components/app-nav";
+"use client";
+
+import { AppChrome, AppSidebar, MobileNav } from "@/components/app-shell";
+import { CreateModals } from "@/components/create-modals";
+import { ShellProvider, useShell } from "@/components/shell-context";
+import { cn } from "@/lib/cn";
+
+function ShellFrame({ children }: { children: React.ReactNode }) {
+  const { collapsed } = useShell();
+
+  return (
+    <div
+      className={cn(
+        "grid min-h-screen grid-cols-1 bg-[var(--dash-bg)] text-[var(--dash-fg)] transition-[grid-template-columns] duration-200",
+        collapsed
+          ? "lg:grid-cols-[56px_minmax(0,1fr)]"
+          : "lg:grid-cols-[280px_minmax(0,1fr)]",
+      )}
+    >
+      <div className="sticky top-0 z-20 hidden h-screen lg:block">
+        <AppSidebar />
+      </div>
+      <div className="flex min-h-screen min-w-0 flex-col">
+        <MobileNav />
+        <AppChrome />
+        <main className="w-full flex-1 p-[var(--space)]">{children}</main>
+      </div>
+      <CreateModals />
+    </div>
+  );
+}
 
 export default function AppLayout({
   children,
@@ -6,11 +36,8 @@ export default function AppLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-full bg-[radial-gradient(ellipse_at_top,rgba(200,245,66,0.12),transparent_40%),linear-gradient(180deg,#f7fbf8,#eef4f0)]">
-      <AppNav />
-      <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
-        {children}
-      </main>
-    </div>
+    <ShellProvider>
+      <ShellFrame>{children}</ShellFrame>
+    </ShellProvider>
   );
 }

@@ -17,7 +17,7 @@ export function Brand({
       <span
         aria-hidden
         className={cn(
-          "grid size-8 place-items-center rounded-lg bg-[var(--zap)] text-[var(--ink)] shadow-[0_8px_24px_rgba(200,245,66,0.35)]",
+          "grid size-8 place-items-center rounded-[4px] bg-[var(--zap)] text-[var(--ink)]",
           markClassName,
         )}
       >

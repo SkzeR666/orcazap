@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Bricolage_Grotesque, DM_Sans } from "next/font/google";
+import { ThemeInit } from "@/components/theme-init";
 import "./globals.css";
 
 const display = Bricolage_Grotesque({
@@ -23,13 +24,21 @@ export const metadata: Metadata = {
     "Checkout simples para serviços vendidos pelo WhatsApp. Crie, envie, aprove, cobre e receba — sem ERP.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
   return (
     <html
       lang="pt-BR"
       className={`${display.variable} ${body.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <ThemeInit />
+        {children}
+      </body>
     </html>
   );
 }

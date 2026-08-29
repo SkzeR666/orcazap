@@ -1,9 +1,11 @@
 import Link from "next/link";
-import { ArrowUpRight } from "lucide-react";
-import { Metric } from "@/components/metric";
-import { QuoteRow } from "@/components/quote-row";
+import { Card, CardBody, CardHeader } from "@/components/ui/card";
+import { DashGrid, PageStack } from "@/components/ui/dash-grid";
+import { StatCard } from "@/components/ui/stat-card";
+import { FunnelChart, RevenueChart, StatusPieChart } from "@/components/charts";
+import { QuotesTable } from "@/components/quotes-table";
 import { formatBRL, formatPercent } from "@/lib/format";
-import { dashboardMetrics, recentQuotes } from "@/lib/mock";
+import { dashboardMetrics, recentQuotes, statusBreakdown } from "@/lib/mock";
 
 export const metadata = {
   title: "Visão geral",
@@ -11,64 +13,92 @@ export const metadata = {
 
 export default function DashboardPage() {
   return (
-    <div className="space-y-10">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight text-[var(--ink)] sm:text-4xl">
-            Visão geral
-          </h1>
-          <p className="mt-2 text-[var(--muted)]">
-            O essencial da operação: receber, acompanhar e converter.
-          </p>
-        </div>
-        <Link
-          href="/orcamentos/novo"
-          className="inline-flex items-center gap-1 text-sm font-medium text-[var(--forest)] hover:underline"
-        >
-          Novo orçamento
-          <ArrowUpRight className="size-4" />
-        </Link>
-      </div>
-
-      <section className="grid gap-8 border-y border-[var(--line)] py-8 sm:grid-cols-2 lg:grid-cols-4">
-        <Metric
+    <PageStack>
+      <DashGrid cols={4} equal>
+        <StatCard
           label="Recebido hoje"
           value={formatBRL(dashboardMetrics.receivedToday)}
+          delta="+12% vs ontem"
+          deltaTone="up"
         />
-        <Metric
+        <StatCard
           label="Em aberto"
           value={formatBRL(dashboardMetrics.openAmount)}
-          hint={`${dashboardMetrics.chargesCount} cobranças`}
+          delta={`${dashboardMetrics.chargesCount} cobranças`}
         />
-        <Metric
+        <StatCard
           label="Conversão"
           value={formatPercent(dashboardMetrics.conversion)}
-          hint="Orçamentos aprovados"
+          delta="Orçamentos → pagos"
+          deltaTone="up"
         />
-        <Metric
+        <StatCard
           label="Recebido no mês"
           value={formatBRL(dashboardMetrics.receivedMonth)}
+          delta={`Ticket médio ${formatBRL(dashboardMetrics.avgTicket)}`}
         />
-      </section>
+      </DashGrid>
 
-      <section>
-        <div className="mb-2 flex items-center justify-between gap-3">
-          <h2 className="font-[family-name:var(--font-display)] text-xl font-semibold text-[var(--ink)]">
-            Últimos orçamentos
-          </h2>
-          <Link
-            href="/orcamentos"
-            className="text-sm text-[var(--muted)] hover:text-[var(--ink)]"
-          >
-            Ver todos
-          </Link>
-        </div>
-        <div>
-          {recentQuotes.slice(0, 4).map((quote) => (
-            <QuoteRow key={quote.id} quote={quote} />
-          ))}
-        </div>
-      </section>
-    </div>
+      <DashGrid cols={2} equal>
+        <Card>
+          <CardHeader title="Recebido × em aberto" />
+          <CardBody>
+            <RevenueChart />
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardHeader title="Funil do mês" />
+          <CardBody>
+            <FunnelChart />
+          </CardBody>
+        </Card>
+      </DashGrid>
+
+      <DashGrid cols={2} equal>
+        <Card>
+          <CardHeader title="Status" />
+          <CardBody className="gap-3">
+            <StatusPieChart />
+            <ul className="mt-auto grid grid-cols-2 gap-x-4 gap-y-1.5 border-t border-[var(--dash-border)] pt-3">
+              {statusBreakdown.map((item) => (
+                <li
+                  key={item.name}
+                  className="flex items-center justify-between gap-2 text-[12px]"
+                >
+                  <span className="flex min-w-0 items-center gap-1.5 truncate text-[var(--dash-fg)]">
+                    <span
+                      className="size-1.5 shrink-0 rounded-[1px]"
+                      style={{ background: item.color }}
+                    />
+                    <span className="truncate">{item.name}</span>
+                  </span>
+                  <span className="shrink-0 tabular-nums text-[var(--dash-muted)]">
+                    {item.value}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardHeader
+            title="Últimos orçamentos"
+            action={
+              <Link
+                href="/orcamentos"
+                className="text-[12px] text-[var(--dash-muted)] hover:text-[var(--dash-ink)]"
+              >
+                Ver todos
+              </Link>
+            }
+          />
+          <CardBody>
+            <QuotesTable quotes={recentQuotes.slice(0, 5)} dense />
+          </CardBody>
+        </Card>
+      </DashGrid>
+    </PageStack>
   );
 }

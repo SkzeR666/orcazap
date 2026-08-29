@@ -61,7 +61,7 @@ export default function LandingPage() {
             </p>
             <div className="animate-rise-delay-2 mt-8 flex flex-wrap items-center gap-3">
               <Link
-                href="/orcamentos/novo"
+                href="/orcamentos"
                 className="inline-flex items-center gap-2 rounded-full bg-[var(--zap)] px-5 py-3 text-sm font-semibold text-[var(--ink)] shadow-[0_12px_32px_rgba(200,245,66,0.35)] transition-transform hover:-translate-y-0.5"
               >
                 Criar primeiro orçamento

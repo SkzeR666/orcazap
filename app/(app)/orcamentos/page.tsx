@@ -1,6 +1,8 @@
-import Link from "next/link";
-import { Plus } from "lucide-react";
-import { QuoteRow } from "@/components/quote-row";
+import { QuotesTable } from "@/components/quotes-table";
+import { Card, CardBody } from "@/components/ui/card";
+import { DashGrid, PageStack } from "@/components/ui/dash-grid";
+import { StatCard } from "@/components/ui/stat-card";
+import { formatBRL } from "@/lib/format";
 import { recentQuotes } from "@/lib/mock";
 
 export const metadata = {
@@ -8,31 +10,25 @@ export const metadata = {
 };
 
 export default function QuotesPage() {
-  return (
-    <div className="space-y-8">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight text-[var(--ink)] sm:text-4xl">
-            Orçamentos
-          </h1>
-          <p className="mt-2 text-[var(--muted)]">
-            Do rascunho ao pagamento — um fluxo só.
-          </p>
-        </div>
-        <Link
-          href="/orcamentos/novo"
-          className="inline-flex items-center gap-2 rounded-full bg-[var(--ink)] px-4 py-2.5 text-sm font-semibold text-[var(--paper)]"
-        >
-          <Plus className="size-4" />
-          Novo
-        </Link>
-      </div>
+  const total = recentQuotes.reduce((sum, q) => sum + q.amount, 0);
+  const open = recentQuotes.filter((q) =>
+    ["enviado", "aprovado", "cobrado"].includes(q.status),
+  ).length;
+  const paid = recentQuotes.filter((q) => q.status === "pago").length;
 
-      <div>
-        {recentQuotes.map((quote) => (
-          <QuoteRow key={quote.id} quote={quote} />
-        ))}
-      </div>
-    </div>
+  return (
+    <PageStack>
+      <DashGrid cols={3}>
+        <StatCard label="Total listado" value={formatBRL(total)} />
+        <StatCard label="Em andamento" value={String(open)} />
+        <StatCard label="Pagos" value={String(paid)} />
+      </DashGrid>
+
+      <Card padding="none">
+        <CardBody>
+          <QuotesTable quotes={recentQuotes} />
+        </CardBody>
+      </Card>
+    </PageStack>
   );
 }
