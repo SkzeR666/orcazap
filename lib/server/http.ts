@@ -26,6 +26,8 @@ export const errors = {
   /** 402 — used when a plan limit or gated feature blocks the action. */
   planLimit: (msg: string, details?: unknown) =>
     new ApiError(402, "plan_limit", msg, details),
+  tooMany: (msg = "Muitas tentativas.", retryAfter?: number) =>
+    new ApiError(429, "rate_limited", msg, { retryAfter }),
 };
 
 export function json(data: unknown, status = 200): NextResponse {
@@ -82,24 +84,31 @@ export async function readJson<T = Record<string, unknown>>(
   }
 }
 
+/** Max accepted length for a free-text field, guarding against abuse/bloat. */
+const MAX_LEN = 2000;
+
 export function requireString(
   body: Record<string, unknown>,
   key: string,
   label = key,
+  max = MAX_LEN,
 ): string {
   const v = body[key];
   if (typeof v !== "string" || !v.trim()) {
     throw errors.badRequest(`Campo "${label}" é obrigatório.`);
   }
+  if (v.length > max) throw errors.badRequest(`Campo "${label}" excede ${max} caracteres.`);
   return v.trim();
 }
 
 export function optionalString(
   body: Record<string, unknown>,
   key: string,
+  max = MAX_LEN,
 ): string | undefined {
   const v = body[key];
   if (v == null) return undefined;
   if (typeof v !== "string") throw errors.badRequest(`Campo "${key}" inválido.`);
+  if (v.length > max) throw errors.badRequest(`Campo "${key}" excede ${max} caracteres.`);
   return v.trim();
 }

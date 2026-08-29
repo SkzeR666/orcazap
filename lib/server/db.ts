@@ -2,6 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { ensureSeed } from "./seed";
+import { runMigrations } from "./migrate";
 
 /**
  * OrçaZap persistence layer.
@@ -192,6 +193,7 @@ function connect(): DatabaseSync {
   db.exec("PRAGMA journal_mode = WAL;");
   db.exec("PRAGMA foreign_keys = ON;");
   db.exec(SCHEMA);
+  runMigrations(db);
   return db;
 }
 

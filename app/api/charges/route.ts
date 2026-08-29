@@ -3,6 +3,7 @@ import { requireContext } from "@/lib/server/auth";
 import {
   createCharge,
   listCharges,
+  parsePage,
   readAmountCents,
   serializeCharge,
 } from "@/lib/server/store";
@@ -10,11 +11,13 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** GET /api/charges */
-export function GET() {
+/** GET /api/charges?limit=&offset= */
+export function GET(req: Request) {
   return handle(async () => {
     const ctx = await requireContext();
-    return ok({ charges: listCharges(ctx).map(serializeCharge) });
+    const page = parsePage(req);
+    const { rows, total } = listCharges(ctx, page);
+    return ok({ charges: rows.map(serializeCharge), meta: { total, ...page } });
   });
 }
 

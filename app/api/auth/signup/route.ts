@@ -3,9 +3,11 @@ import { getDb } from "@/lib/server/db";
 import {
   createSession,
   hashPassword,
+  issueVerificationToken,
   setSessionCookie,
 } from "@/lib/server/auth";
 import { newId, nowIso, slugify, isEmail } from "@/lib/server/util";
+import { rateLimit, clientKey } from "@/lib/server/ratelimit";
 import { DEFAULT_TEMPLATE } from "@/lib/server/whatsapp";
 
 export const runtime = "nodejs";
@@ -14,6 +16,7 @@ export const dynamic = "force-dynamic";
 /** POST /api/auth/signup — creates a user, their org (free plan) and a session. */
 export function POST(req: Request) {
   return handle(async () => {
+    rateLimit(clientKey(req, "signup"), { limit: 10, windowMs: 60 * 60_000 });
     const body = await readJson(req);
     const name = requireString(body, "name", "nome");
     const email = requireString(body, "email").toLowerCase();
@@ -49,11 +52,15 @@ export function POST(req: Request) {
       "INSERT INTO memberships (id, org_id, user_id, name, email, role, status, created_at) VALUES (?, ?, ?, ?, ?, 'owner', 'active', ?)",
     ).run(newId("mem"), orgId, userId, name, email, now);
 
+    const verificationToken = issueVerificationToken(userId);
     const token = createSession(userId);
     await setSessionCookie(token);
     return created({
-      user: { id: userId, name, email },
+      user: { id: userId, name, email, emailVerified: false },
       org: { id: orgId, name: businessName, slug, plan: "free" },
+      // No mailer is wired: the token is returned so the flow is testable.
+      // In production, email this instead of returning it.
+      verificationToken,
     });
   });
 }

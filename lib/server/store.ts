@@ -179,12 +179,33 @@ export function readAmountCents(
   body: Record<string, unknown>,
   { required = true }: { required?: boolean } = {},
 ): number {
-  if (typeof body.amountCents === "number") return Math.round(body.amountCents);
-  if (typeof body.amount === "number") return toCents(body.amount);
-  if (typeof body.amount === "string" && body.amount.trim())
-    return toCents(body.amount);
-  if (required) throw errors.badRequest('Campo "amount" é obrigatório.');
-  return 0;
+  let cents: number | null = null;
+  if (typeof body.amountCents === "number") cents = Math.round(body.amountCents);
+  else if (typeof body.amount === "number") cents = toCents(body.amount);
+  else if (typeof body.amount === "string" && body.amount.trim())
+    cents = toCents(body.amount);
+
+  if (cents == null) {
+    if (required) throw errors.badRequest('Campo "amount" é obrigatório.');
+    return 0;
+  }
+  if (!Number.isFinite(cents) || cents < 0) {
+    throw errors.badRequest("Valor não pode ser negativo.");
+  }
+  if (cents > 1_000_000_000) throw errors.badRequest("Valor acima do limite.");
+  return cents;
+}
+
+// ---- pagination -------------------------------------------------------------
+
+export type Page = { limit: number; offset: number };
+
+/** Reads ?limit= & ?offset= with sane defaults and caps. */
+export function parsePage(req: Request): Page {
+  const p = new URL(req.url).searchParams;
+  const limit = Math.min(Math.max(Number.parseInt(p.get("limit") ?? "50", 10) || 50, 1), 200);
+  const offset = Math.max(Number.parseInt(p.get("offset") ?? "0", 10) || 0, 0);
+  return { limit, offset };
 }
 
 // ---- history retention ------------------------------------------------------
@@ -237,10 +258,23 @@ function assertUnderLimit(
 
 // ---- clients ----------------------------------------------------------------
 
-export function listClients(ctx: RequestContext): ClientRow[] {
-  return getDb()
-    .prepare("SELECT * FROM clients WHERE org_id = ? ORDER BY name ASC")
-    .all(ctx.org.id) as ClientRow[];
+export function listClients(
+  ctx: RequestContext,
+  page?: Page,
+): { rows: ClientRow[]; total: number } {
+  const db = getDb();
+  const total = (
+    db.prepare("SELECT COUNT(*) c FROM clients WHERE org_id = ?").get(ctx.org.id) as {
+      c: number;
+    }
+  ).c;
+  const p = page ?? { limit: 200, offset: 0 };
+  const rows = db
+    .prepare(
+      "SELECT * FROM clients WHERE org_id = ? ORDER BY name ASC LIMIT ? OFFSET ?",
+    )
+    .all(ctx.org.id, p.limit, p.offset) as ClientRow[];
+  return { rows, total };
 }
 
 export function getClient(ctx: RequestContext, id: string): ClientRow {
@@ -345,7 +379,8 @@ export function deleteService(ctx: RequestContext, id: string): void {
 export function listQuotes(
   ctx: RequestContext,
   filter?: { status?: string },
-): QuoteRow[] {
+  page?: Page,
+): { rows: QuoteRow[]; total: number } {
   const db = getDb();
   const floor = historyFloor(ctx);
   const clauses = ["org_id = ?"];
@@ -358,11 +393,19 @@ export function listQuotes(
     clauses.push("status = ?");
     args.push(filter.status);
   }
-  return db
+  const where = clauses.join(" AND ");
+  const total = (
+    db.prepare(`SELECT COUNT(*) c FROM quotes WHERE ${where}`).get(...(args as never[])) as {
+      c: number;
+    }
+  ).c;
+  const p = page ?? { limit: 200, offset: 0 };
+  const rows = db
     .prepare(
-      `SELECT * FROM quotes WHERE ${clauses.join(" AND ")} ORDER BY created_at DESC`,
+      `SELECT * FROM quotes WHERE ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
     )
-    .all(...(args as never[])) as QuoteRow[];
+    .all(...([...args, p.limit, p.offset] as never[])) as QuoteRow[];
+  return { rows, total };
 }
 
 export function getQuote(ctx: RequestContext, id: string): QuoteRow {
@@ -547,7 +590,11 @@ export function deleteQuote(ctx: RequestContext, id: string): void {
 
 // ---- charges (Pix) ----------------------------------------------------------
 
-export function listCharges(ctx: RequestContext): ChargeRow[] {
+export function listCharges(
+  ctx: RequestContext,
+  page?: Page,
+): { rows: ChargeRow[]; total: number } {
+  const db = getDb();
   const floor = historyFloor(ctx);
   const clauses = ["org_id = ?"];
   const args: unknown[] = [ctx.org.id];
@@ -555,11 +602,19 @@ export function listCharges(ctx: RequestContext): ChargeRow[] {
     clauses.push("created_at >= ?");
     args.push(floor);
   }
-  return getDb()
+  const where = clauses.join(" AND ");
+  const total = (
+    db.prepare(`SELECT COUNT(*) c FROM charges WHERE ${where}`).get(...(args as never[])) as {
+      c: number;
+    }
+  ).c;
+  const p = page ?? { limit: 200, offset: 0 };
+  const rows = db
     .prepare(
-      `SELECT * FROM charges WHERE ${clauses.join(" AND ")} ORDER BY created_at DESC`,
+      `SELECT * FROM charges WHERE ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
     )
-    .all(...(args as never[])) as ChargeRow[];
+    .all(...([...args, p.limit, p.offset] as never[])) as ChargeRow[];
+  return { rows, total };
 }
 
 export function getCharge(ctx: RequestContext, id: string): ChargeRow {

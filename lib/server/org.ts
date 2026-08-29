@@ -11,6 +11,7 @@ import {
 } from "./plans";
 import { toCents } from "./util";
 import { DEFAULT_TEMPLATE } from "./whatsapp";
+import { deleteLogo, hasLogo, parseDataUrl, setLogoBytes } from "./logo";
 import type { MembershipRow, OrgRow, RequestContext } from "./auth";
 
 // ---- business profile -------------------------------------------------------
@@ -68,8 +69,8 @@ export function serializeOrg(org: OrgRow, ctx: RequestContext) {
     email: org.email,
     document: org.document,
     address: org.address,
-    hasLogo: Boolean(org.logo),
-    logo: org.logo,
+    hasLogo: hasLogo(org.id),
+    logoUrl: hasLogo(org.id) ? "/api/business/logo" : null,
     brandingRemoved: Boolean(org.branding_removed),
     messageTemplate: org.message_template,
     quote: {
@@ -141,12 +142,16 @@ export function updateBusiness(
 }
 
 export function setLogo(ctx: RequestContext, dataUrl: string | null): OrgRow {
-  if (dataUrl && !ctx.plan.features.logo) {
-    throw errors.planLimit("Logo da empresa é um recurso Pro/Negócio.", {
-      feature: "logo",
-    });
+  if (dataUrl) {
+    if (!ctx.plan.features.logo) {
+      throw errors.planLimit("Logo da empresa é um recurso Pro/Negócio.", {
+        feature: "logo",
+      });
+    }
+    setLogoBytes(ctx.org.id, parseDataUrl(dataUrl));
+  } else {
+    deleteLogo(ctx.org.id);
   }
-  getDb().prepare("UPDATE orgs SET logo = ? WHERE id = ?").run(dataUrl, ctx.org.id);
   return getDb().prepare("SELECT * FROM orgs WHERE id = ?").get(ctx.org.id) as OrgRow;
 }
 

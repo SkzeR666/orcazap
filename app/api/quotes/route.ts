@@ -4,6 +4,7 @@ import {
   createQuote,
   isQuoteStatus,
   listQuotes,
+  parsePage,
   readAmountCents,
   serializeQuote,
 } from "@/lib/server/store";
@@ -16,8 +17,9 @@ export function GET(req: Request) {
   return handle(async () => {
     const ctx = await requireContext();
     const status = new URL(req.url).searchParams.get("status") ?? undefined;
-    const rows = listQuotes(ctx, status ? { status } : undefined);
-    return ok({ quotes: rows.map(serializeQuote) });
+    const page = parsePage(req);
+    const { rows, total } = listQuotes(ctx, status ? { status } : undefined, page);
+    return ok({ quotes: rows.map(serializeQuote), meta: { total, ...page } });
   });
 }
 
